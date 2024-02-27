@@ -1,0 +1,73 @@
+{% include 'header.html' %}
+
+    <div class="container">
+        <div class="row">
+            <div>
+
+{% include 'form.html' %}
+
+<!--
+    {{ report|safe }}
+-->
+
+                <h4>Billing period: {{ report.meta.StartDate.strftime('%Y-%m-%d') }} - {{ report.meta.EndDate.strftime('%Y-%m-%d') }}</h4>
+
+                <table class="table table">
+                  <tbody>
+{% for TeenantId in report.data.customers %}
+{{ report.data.customers[CustomerId] }}
+                    <tr>
+                        <td colspan="4"><h3>{{ report.data.customers[TeenantId].CustomerName }}</h3></td>
+                    </tr>
+                    <tr>
+                        <td class="col-1 table-secondary">TeenantId</td>
+                        <td class="col-2">{{ TeenantId }}</td>
+                        <td class="col-1 table-secondary">Domain Name</td>
+                        <td class="col-2">{{ report.data.customers[TeenantId].CustomerDomainName }}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="4">
+
+                            <br><h5>Subscriptions</h5>
+                            <table class="table mb-0 table-sm table-striped table-bordered">
+                                <thead>
+                                    <tr class="table-secondary">
+                                        <th scope="col-2">Id</th>
+                                        <th scope="col-2">Name</th>
+                                        <th scope="col-1">Customer Cost</th>
+                                        <th scope="col-1">Partner Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="table-group-divider">
+{% for EntitlementId in report.data.customers[TeenantId].subscriptions %}
+                                    <tr>
+                                        <td scope="row">{{ EntitlementId }}</td>
+                                        <td scope="row">{{ report.data.customers[TeenantId].subscriptions[EntitlementId].EntitlementName }}</td>
+                                        <td class="text-end">{{ "%.2f"|format( report.data.customers[TeenantId].subscriptions[EntitlementId].CustomerCost ) }} EUR</td>
+                                        <td class="text-end">{{ "%.2f"|format( report.data.customers[TeenantId].subscriptions[EntitlementId].PartnerCost ) }} EUR</td>
+                                    </tr>
+{% endfor %}
+                                </tbody>
+                                <tfoot>
+                                    <tr class="table-dark">
+                                        <th colspan="2" class="text-end">Total</th>
+                                        <th class="text-end">{{ "%.2f"|format( report.data.customers[TeenantId].CustomerCost ) }} EUR</th>
+                                        <th class="text-end">{{ "%.2f"|format( report.data.customers[TeenantId].PartnerCost ) }} EUR</th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                            <br>
+
+                        </td>
+                    </tr>
+                  </tbody>
+{% endfor %}
+                </table>
+
+            </div>
+            <div class="col"></div>
+        </div>
+    </div>
+    <br><br><br><br>
+
+{% include 'footer.html' %}
