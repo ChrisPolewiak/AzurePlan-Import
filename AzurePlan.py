@@ -49,8 +49,8 @@ def Calculate( report ):
             billing['meta']['EndDate'] = datetime.strptime( str(line['ChargeEndDate']), '%Y-%m-%d %H:%M:%S')
 
         # Calculate Billing per Customer
-        CustomerId = line['CustomerId']
-        EntitlementId = line['EntitlementId']
+        CustomerId = line['CustomerId'].lower()
+        EntitlementId = line['EntitlementId'].lower()
 
         subs[EntitlementId]=1
 
