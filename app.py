@@ -4,7 +4,7 @@
 # Website:	https://github.com/ChrisPolewiak/azure-toolkit/tree/master/AzurePlan-Import
 
 from flask import *
-import uuid_utils as uuid
+import uuid_utils.compat as uuid
 from werkzeug.utils import secure_filename
 import os
 import AzurePlan
