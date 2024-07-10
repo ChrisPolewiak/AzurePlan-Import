@@ -17,7 +17,7 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['UPLOAD_FOLDER'] = os.path.abspath('uploads')
 app.config['SECRET_KEY'] = 'yt83t0ghasyg0j'
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
-app.config['version'] = '2.04 (2024-07-10)'
+app.config['version'] = '2.05 (2024-07-10)'
 
 # Application Insight For website monitoring
 if "CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING" in os.environ:
@@ -41,19 +41,16 @@ def index():
 
 
 # Import and report
-@app.route('/import', methods=['GET', 'POST'])
+@app.route('/import', methods=['POST'])
 def upload_file():
     if request.method == 'POST':
         if request.files:
-            uploaded_file = request.files['file']
-
-            if uploaded_file and allowed_file(uploaded_file.filename):
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], str(uuid.uuid4()) + '_' + secure_filename(uploaded_file.filename)) 
-                uploaded_file.save(filepath)
-
-                report = AzurePlan.Import(filepath)
+            print (2)
+            filedata = request.files['file']
+            filename = filedata.filename
+            report = AzurePlan.Import( filename, filedata )
+            if report:
                 billing = AzurePlan.Calculate(report)
-                os.unlink( filepath )
                 return render_template('report.html', report=billing)
             else:
                 print("wrong filename")

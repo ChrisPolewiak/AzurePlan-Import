@@ -4,27 +4,29 @@ import re
 import csv
 import locale
 import datetime
+import io
 from datetime import date, timedelta, datetime
 import warnings
 warnings.simplefilter("ignore")
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 # Import data
-def Import( filepath ):
-    if (filepath.endswith('.csv') ):
-        report = ImportFromCSV( filepath )
+def Import( filename, filedata ):
+    print('filename:'+filename)
+    if (filename.endswith('.csv') ):
+        data = filedata.read().decode('utf-8')
+        report = ImportFromCSV( data )
     return report
 
 
 # Import data from CSV
-def ImportFromCSV( filepath ):
+def ImportFromCSV( csvstring ):
     report = []
-    with open(filepath, 'r', newline='') as csvfile:
-        reader = csv.DictReader(csvfile, delimiter=';')
-        for line in reader:
-            if line == '\r\n' or line == '\n' or line == '':
-                continue
-            report.append(line)
+    reader = csv.DictReader(io.StringIO( csvstring ), delimiter=';')
+    for line in reader:
+        if line == '\r\n' or line == '\n' or line == '':
+            continue
+        report.append(line)
     return report
 
 
@@ -69,7 +71,7 @@ def Calculate( report ):
                 }
 
             if not EntitlementId in billing['data']['customers'][CustomerId]['subscriptions']:
-                print('Adding Entitlement:', EntitlementId)
+                # print('Adding Entitlement:', EntitlementId)
                 billing['data']['customers'][CustomerId]['subscriptions'][EntitlementId]={
                     'EntitlementName': line['EntitlementDescription'],
                     'CustomerCost': float(),
