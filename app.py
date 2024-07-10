@@ -19,9 +19,8 @@ app.config['SECRET_KEY'] = 'yt83t0ghasyg0j'
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
 app.config['version'] = '2.04 (2024-07-10)'
 
-
 # Application Insight For website monitoring
-if ( os.environ["CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING"] ):
+if "CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING" in os.environ:
     AzureAppInsights_ConnectionString = os.environ["CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING"]
     if AzureAppInsights_ConnectionString:
         middleware = FlaskMiddleware(
