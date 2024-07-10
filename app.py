@@ -17,18 +17,18 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['UPLOAD_FOLDER'] = os.path.abspath('uploads')
 app.config['SECRET_KEY'] = 'yt83t0ghasyg0j'
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
-app.config['version'] = '2.03 (2024-02-27)'
+app.config['version'] = '2.04 (2024-07-10)'
 
 
-# For website monitoring
-AzureAppInsights_ConnectionString = 'InstrumentationKey=3712782d-691c-47d4-bef1-52ae3c0f7dc1;IngestionEndpoint=https://northeurope-2.in.applicationinsights.azure.com/;LiveEndpoint=https://northeurope.livediagnostics.monitor.azure.com/'
-
-if AzureAppInsights_ConnectionString:
-    middleware = FlaskMiddleware(
-        app,
-        exporter=AzureExporter( connection_string=AzureAppInsights_ConnectionString ),
-        sampler=ProbabilitySampler(rate=1.0),
-    )
+# Application Insight For website monitoring
+if ( os.environ["CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING"] ):
+    AzureAppInsights_ConnectionString = os.environ["CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING"]
+    if AzureAppInsights_ConnectionString:
+        middleware = FlaskMiddleware(
+            app,
+            exporter=AzureExporter( connection_string=AzureAppInsights_ConnectionString ),
+            sampler=ProbabilitySampler(rate=1.0),
+        )
 
 
 ALLOWED_EXTENSIONS = {'csv', 'xls', 'xlsx', 'txt'}
