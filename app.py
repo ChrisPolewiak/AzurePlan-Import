@@ -1,8 +1,3 @@
-# Import, extract and calculate billing in AzurePlan subscriptions from Excel and CSV files
-# 
-# Written By: Chris Polewiak
-# Website:	https://github.com/ChrisPolewiak/azure-toolkit/tree/master/AzurePlan-Import
-
 from flask import *
 import uuid_utils.compat as uuid
 from werkzeug.utils import secure_filename
@@ -11,6 +6,25 @@ import AzurePlan
 from opencensus.ext.azure.trace_exporter import AzureExporter
 from opencensus.ext.flask.flask_middleware import FlaskMiddleware
 from opencensus.trace.samplers import ProbabilitySampler
+import logging
+
+# Import, extract and calculate billing in AzurePlan subscriptions from Excel and CSV files
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
+
+logging.info("Application started. Logging is configured.")
+# 
+# Written By: Chris Polewiak
+# Website:	https://github.com/ChrisPolewiak/azure-toolkit/tree/master/AzurePlan-Import
+
 
 app = Flask(__name__, template_folder = os.path.abspath('template'))
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -37,12 +51,14 @@ def allowed_file(filename):
 # Default webpage - form
 @app.route('/', methods=['GET'])
 def index():
+    logging.info("Index page accessed")
     return render_template('index.html')
 
 
 # Import and report
 @app.route('/import', methods=['POST'])
 def upload_file():
+    logging.info("Upload file endpoint accessed")
     if request.method == 'POST':
         if request.files:
             print (2)
@@ -62,6 +78,7 @@ def upload_file():
 
 @app.route('/pws/update', methods=['POST', 'GET'])
 def update_pws():
+    logging.info("Update PWS endpoint accessed")
     print ('content-type:')
     print (request.headers.get('Content-Type'))
     print ('form:')
@@ -76,7 +93,6 @@ def update_pws():
 
     return render_template('index.html')
     
-
 
 if __name__ == '__main__':
     app.secret_key = 'super secret key'
