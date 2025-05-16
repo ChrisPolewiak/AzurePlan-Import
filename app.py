@@ -1,47 +1,60 @@
-from flask import *
-import uuid_utils.compat as uuid
-from werkzeug.utils import secure_filename
-import os
-import AzurePlan
-from opencensus.ext.azure.trace_exporter import AzureExporter
-from opencensus.ext.flask.flask_middleware import FlaskMiddleware
-from opencensus.trace.samplers import ProbabilitySampler
-import logging
-
-# Import, extract and calculate billing in AzurePlan subscriptions from Excel and CSV files
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("app.log"),
-        logging.StreamHandler()
-    ]
-)
-
-logging.info("Application started. Logging is configured.")
 # 
 # Written By: Chris Polewiak
 # Website:	https://github.com/ChrisPolewiak/azure-toolkit/tree/master/AzurePlan-Import
 
+from flask import *
+import uuid_utils.compat as uuid
+from werkzeug.utils import secure_filename
+import os
+import sys
+import AzurePlan
+import logging
+from opentelemetry import trace
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
+# Load environment variables from .env
+if os.environ.get("WEBSITE_INSTANCE_ID") is None:
+    from dotenv import load_dotenv
+    load_dotenv()
+
+# Create a connection string for Application Insights
+connection_string = (
+    os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    or os.environ.get("CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING")
+)
+
+# Create trace provider and exporter
+if connection_string:
+    resource = Resource(attributes={
+        "service.name": "flask-telemetry-app"
+    })
+
+    provider = TracerProvider(resource=resource)
+    trace.set_tracer_provider(provider)
+
+    exporter = AzureMonitorTraceExporter(connection_string=connection_string)
+    span_processor = BatchSpanProcessor(exporter)
+    provider.add_span_processor(span_processor)
+
+    logging.info("Application Insights telemetry configured.")
+
+# Flask app setup
 app = Flask(__name__, template_folder = os.path.abspath('template'))
+FlaskInstrumentor().instrument_app(app)
+
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['UPLOAD_FOLDER'] = os.path.abspath('uploads')
 app.config['SECRET_KEY'] = 'yt83t0ghasyg0j'
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
 app.config['version'] = '2.06 (2025-06-16)'
 
-# Application Insight For website monitoring
-if "CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING" in os.environ:
-    AzureAppInsights_ConnectionString = os.environ["CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING"]
-    if AzureAppInsights_ConnectionString:
-        middleware = FlaskMiddleware(
-            app,
-            exporter=AzureExporter( connection_string=AzureAppInsights_ConnectionString ),
-            sampler=ProbabilitySampler(rate=1.0),
-        )
+# Startup logging
+tracer = trace.get_tracer(__name__)
+
 
 
 ALLOWED_EXTENSIONS = {'csv', 'xls', 'xlsx', 'txt'}
@@ -58,23 +71,42 @@ def index():
 # Import and report
 @app.route('/import', methods=['POST'])
 def upload_file():
-    logging.info("Upload file endpoint accessed")
-    if request.method == 'POST':
-        if request.files:
-            print (2)
-            filedata = request.files['file']
-            filename = filedata.filename
+    with tracer.start_as_current_span("upload handler") as span:
+        if request.method != 'POST':
+            logmsg = "Bad request - POST only"
+            logging.info(logmsg)
+            span.set_attribute("http.error", logmsg)
+            print("ERROR: "+logmsg)
+            return redirect('/')
+        
+        if 'file' not in request.files:
+            logmsg = "No file in request"
+            logging.info(logmsg)
+            span.set_attribute("http.error", logmsg)
+            print("ERROR: "+logmsg)
+            return redirect('/')
+
+        filedata = request.files['file']
+        filename = filedata.filename
+        span.set_attribute("filename", filename)
+
+        with tracer.start_as_current_span("AzurePlan.Import") as import_span:
             report = AzurePlan.Import( filename, filedata )
-            if report:
+            logmsg = "Report Success"
+            logging.info(logmsg)
+            import_span.set_attribute(logmsg, bool(report))
+
+        if report:
+            with tracer.start_as_current_span("AzurePlan.Calculate") as calc_span:
                 billing = AzurePlan.Calculate(report)
-                return render_template('report.html', report=billing)
-            else:
-                print("wrong filename")
+                calc_span.set_attribute("billing.size", len(billing) if hasattr(billing, '__len__') else -1)
+
+            return render_template('report.html', report=billing)
         else:
-            print("no files")
-    else:
-        print("not post")
-    return redirect('/')
+            span.set_attribute("import.failed", True)
+            print("wrong filename")
+            return redirect('/')
+
 
 @app.route('/pws/update', methods=['POST', 'GET'])
 def update_pws():

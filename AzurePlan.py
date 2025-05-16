@@ -8,106 +8,176 @@ from datetime import date, timedelta, datetime
 import warnings
 import pandas as pd
 import logging
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
 
 warnings.simplefilter("ignore")
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 
 # Add logging to each function
 def Import(filename, filedata):
-    logging.info("Import function called with filename: %s", filename)
-    print('filename:' + filename)
-    if filename.endswith('.csv'):
-        filedata_str = filedata.read().decode('utf-8')
-        data = clean_bad_csv_lines(filedata_str)
-        report = ImportFromCSV(data)
-    logging.info("Import function completed")
-    return report
+    with tracer.start_as_current_span("AzurePlan.Import") as span:
+        logging.info("Import function called with filename: %s", filename)
+        span.set_attribute("import.filename", filename)
+        try:
+            if filename.endswith('.csv'):
+                with tracer.start_as_current_span("read file"):
+                    filedata_str = filedata.read().decode('utf-8')
+                    span.set_attribute("import.file.size", len(filedata_str))
+
+                with tracer.start_as_current_span("clean_bad_csv_lines"):
+                    data = clean_bad_csv_lines(filedata_str)
+
+                with tracer.start_as_current_span("ImportFromCSV"):
+                    report = ImportFromCSV(data)
+                    span.set_attribute("import.rows", len(report))
+
+                logging.info("Import function completed")
+                return report
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+            logging.exception("Exception during import")
+            return None
 
 def remove_json_fields(line):
-#    logging.debug("remove_json_fields called")
-    return re.sub(r'(?<="){.*?}(?=")', '', line)
+    cleaned = re.sub(r'(?<="){.*?}(?=")', '', line)
+    if cleaned != line:
+        logging.debug("remove_json_fields modified line")
+    return cleaned
 
 def clean_bad_csv_lines(csv_text):
-    logging.info("clean_bad_csv_lines called")
-    lines = csv_text.strip().splitlines()
-    header = lines[0]
-    cleaned_lines = [header]
+    with tracer.start_as_current_span("clean_bad_csv_lines") as span:
+        logging.info("clean_bad_csv_lines called")
 
-    for i, line in enumerate(lines[1:], start=2):
-        try:
-            pd.read_csv(io.StringIO(f"{header}\n{line}"), delimiter=';', quotechar='"', engine='python')
-            cleaned_lines.append(line)
-        except Exception as e:
-            logging.warning("Error in line %d: %s", i, e)
-            fixed_line = remove_json_fields(line)
-            cleaned_lines.append(fixed_line)
+        lines = csv_text.strip().splitlines()
+        header = lines[0]
+        cleaned_lines = [header]
 
-    logging.info("clean_bad_csv_lines completed")
-    return "\n".join(cleaned_lines)
+        fixed_count = 0
+        total_lines = len(lines) - 1  # exclude header
+
+        for i, line in enumerate(lines[1:], start=2):
+            try:
+                pd.read_csv(io.StringIO(f"{header}\n{line}"), delimiter=';', quotechar='"', engine='python')
+                cleaned_lines.append(line)
+            except Exception as e:
+                # logging.warning("Error in line %d: %s", i, e)
+                fixed_line = remove_json_fields(line)
+                cleaned_lines.append(fixed_line)
+                fixed_count += 1
+
+        span.set_attribute("csv.lines_total", total_lines)
+        span.set_attribute("csv.lines_fixed", fixed_count)
+        span.set_attribute("csv.fix_rate", fixed_count / total_lines if total_lines else 0)                
+
+        logging.info("clean_bad_csv_lines completed")
+        return "\n".join(cleaned_lines)
 
 def ImportFromCSV(csvstring):
-    logging.info("ImportFromCSV called")
-    df = pd.read_csv(io.StringIO(csvstring), delimiter=';', quotechar='"', engine='python')
-    logging.info("ImportFromCSV completed")
-    return df.to_dict(orient='records')
+    with tracer.start_as_current_span("ImportFromCSV") as span:
+        logging.info("ImportFromCSV called")
+        try:
+            df = pd.read_csv(io.StringIO(csvstring), delimiter=';', quotechar='"', engine='python')
+            span.set_attribute("csv.rows", len(df))
+            span.set_attribute("csv.columns", len(df.columns))
+            logging.info("ImportFromCSV completed")
+            return df.to_dict(orient='records')
+        except Exception as e:
+            span.record_exception(e)
+            span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
+            logging.exception("Exception in ImportFromCSV")
+            return []
 
 def Calculate(report):
-    logging.info("Calculate function called")
-    billing = {
-        'meta': {
-            'StartDate': '',
-            'EndDate': ''
-        },
-        'data': {
-            'customers': {},
+    with tracer.start_as_current_span("AzurePlan.Calculate") as span:
+        logging.info("Calculate function called")
+
+        billing = {
+            'meta': {
+                'StartDate': '',
+                'EndDate': ''
+            },
+            'data': {
+                'customers': {},
+            }
         }
-    }
+
     subs = {}
+    customers_count = 0
+    subscriptions_count = 0
+    total_customer_cost = 0.0
+    total_partner_cost = 0.0
+    
     for line in report:
-        # Set Report Dates
-        if billing['meta']['StartDate'] == '':
-            billing['meta']['StartDate'] = datetime.strptime(str(line['ChargeStartDate']), '%Y-%m-%d %H:%M:%S')
-        if billing['meta']['EndDate'] == '':
-            billing['meta']['EndDate'] = datetime.strptime(str(line['ChargeEndDate']), '%Y-%m-%d %H:%M:%S')
+        try:
+            # Set Report Dates
+            if not billing['meta']['StartDate']:
+                billing['meta']['StartDate'] = datetime.strptime(str(line['ChargeStartDate']), '%Y-%m-%d %H:%M:%S')
+            if not billing['meta']['EndDate']:
+                billing['meta']['EndDate'] = datetime.strptime(str(line['ChargeEndDate']), '%Y-%m-%d %H:%M:%S')
 
-        # Calculate Billing per Customer
-        CustomerId = line['CustomerId'].lower()
-        EntitlementId = line['EntitlementId'].lower()
+            # Extract identifiers
+            CustomerId = line['CustomerId'].lower()
+            EntitlementId = line['EntitlementId'].lower()
 
-        subs[EntitlementId] = 1
+            if pd.isna(CustomerId) or pd.isna(EntitlementId):
+                continue
 
-        if not pd.isna(CustomerId) and not pd.isna(EntitlementId):
+            subs[EntitlementId] = 1
+
+            # Create customer block if missing
             if CustomerId not in billing['data']['customers']:
                 billing['data']['customers'][CustomerId] = {
                     'CustomerName': line['CustomerName'],
                     'CustomerDomainName': line['CustomerDomainName'],
                     'CustomerCountry': line['CustomerCountry'],
-                    'CustomerCost': float(),
-                    'PartnerCost': float(),
+                    'CustomerCost': 0.0,
+                    'PartnerCost': 0.0,
                     'subscriptions': {}
                 }
 
-            if EntitlementId not in billing['data']['customers'][CustomerId]['subscriptions']:
-                billing['data']['customers'][CustomerId]['subscriptions'][EntitlementId] = {
+            # Create subscription block if missing
+            customer = billing['data']['customers'][CustomerId]
+            if EntitlementId not in customer['subscriptions']:
+                customer['subscriptions'][EntitlementId] = {
                     'EntitlementName': line['EntitlementDescription'],
-                    'CustomerCost': float(),
-                    'PartnerCost': float()
+                    'CustomerCost': 0.0,
+                    'PartnerCost': 0.0
                 }
+                subscriptions_count += 1
 
-            UnitPrice = float(line['UnitPrice'].replace(',', '.'))
-            Quantity = float(line['Quantity'].replace(',', '.'))
-            BillingPreTaxTotal = float(line['BillingPreTaxTotal'].replace(',', '.'))
-            PCToBCExchangeRate = float(line['PCToBCExchangeRate'].replace(',', '.'))
-            EffectiveUnitPrice = float(line['EffectiveUnitPrice'].replace(',', '.'))
+            # Calculate financials
+            UnitPrice = float(str(line['UnitPrice']).replace(',', '.'))
+            Quantity = float(str(line['Quantity']).replace(',', '.'))
+            BillingPreTaxTotal = float(str(line['BillingPreTaxTotal']).replace(',', '.'))
+            PCToBCExchangeRate = float(str(line['PCToBCExchangeRate']).replace(',', '.'))
+            EffectiveUnitPrice = float(str(line['EffectiveUnitPrice']).replace(',', '.'))
+
             CustomerCost = UnitPrice * Quantity * PCToBCExchangeRate
             PartnerCost = EffectiveUnitPrice * Quantity * PCToBCExchangeRate
 
-            billing['data']['customers'][CustomerId]['subscriptions'][EntitlementId]['CustomerCost'] += CustomerCost
-            billing['data']['customers'][CustomerId]['subscriptions'][EntitlementId]['PartnerCost'] += PartnerCost
-            billing['data']['customers'][CustomerId]['CustomerCost'] += CustomerCost
-            billing['data']['customers'][CustomerId]['PartnerCost'] += PartnerCost
+            # Aggregate
+            customer['subscriptions'][EntitlementId]['CustomerCost'] += CustomerCost
+            customer['subscriptions'][EntitlementId]['PartnerCost'] += PartnerCost
+            customer['CustomerCost'] += CustomerCost
+            customer['PartnerCost'] += PartnerCost
 
+            total_customer_cost += CustomerCost
+            total_partner_cost += PartnerCost
+
+        except Exception as e:
+            logging.warning("Skipping row due to error: %s", e)
+            span.record_exception(e)
+
+    # Final metrics for tracing
+    span.set_attribute("billing.customers", customers_count)
+    span.set_attribute("billing.subscriptions", subscriptions_count)
+    span.set_attribute("billing.total_customer_cost", round(total_customer_cost, 4))
+    span.set_attribute("billing.total_partner_cost", round(total_partner_cost, 4))
     logging.info("Calculate function completed")
+
     return billing
 
 def ReportTXT(billing):

@@ -3,7 +3,10 @@
 ## [2.06] - 2025-05-16
 ### Added
 - Add function to clean CVS files with wrong JSON elements included in the file
+- Add Application Insights trace logs
 
+### Changed
+- Refactor code with best practices
 
 ## [2.03] - 2024-02-27
 ### Changed
