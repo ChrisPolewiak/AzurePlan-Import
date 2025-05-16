@@ -35,10 +35,10 @@ def clean_bad_csv_lines(csv_text):
             pd.read_csv(io.StringIO(f"{header}\n{line}"), delimiter=';', quotechar='"', engine='python')
             cleaned_lines.append(line)  # linia OK
         except Exception as e:
-            print(f"⚠️  Błąd w linii {i}: {e}")
-            print(f"🧨 Treść linii: {line}")
+            # print(f"⚠️  Błąd w linii {i}: {e}")
+            # print(f"🧨 Treść linii: {line}")
             fixed_line = remove_json_fields(line)
-            print(f"✅ Poprawiona linia: {fixed_line}")
+            # print(f"✅ Poprawiona linia: {fixed_line}")
             cleaned_lines.append(fixed_line)
 
     return "\n".join(cleaned_lines)
