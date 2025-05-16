@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.06] - 2025-05-16
+### Added
+- Add function to clean CVS files with wrong JSON elements included in the file
+
+
 ## [2.03] - 2024-02-27
 ### Changed
 - Change selector for subscription - in billing there is new field named Entitlement, and old SubscriptionId is for Azure plan ID

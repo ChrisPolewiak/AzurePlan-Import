@@ -31,7 +31,7 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['UPLOAD_FOLDER'] = os.path.abspath('uploads')
 app.config['SECRET_KEY'] = 'yt83t0ghasyg0j'
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
-app.config['version'] = '2.05 (2024-07-10)'
+app.config['version'] = '2.06 (2025-06-16)'
 
 # Application Insight For website monitoring
 if "CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING" in os.environ:
