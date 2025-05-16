@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import re
-import csv
+import sys
 import locale
 import datetime
 import io
@@ -14,20 +14,39 @@ locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 def Import( filename, filedata ):
     print('filename:'+filename)
     if (filename.endswith('.csv') ):
-        data = filedata.read().decode('utf-8')
+        filedata_str = filedata.read().decode('utf-8')
+        data = clean_bad_csv_lines( filedata_str )
         report = ImportFromCSV( data )
     return report
 
+def remove_json_fields(line):
+    # Znajdź wszystkie pola CSV wyglądające jak JSON i usuń je
+    # Obsługuje wielokrotne JSON-y w jednej linii
+    # Uwaga: zakłada, że JSON-y nie mają zagnieżdżeń {}
+    return re.sub(r'(?<="){.*?}(?=")', '', line)
+
+def clean_bad_csv_lines(csv_text):
+    lines = csv_text.strip().splitlines()
+    header = lines[0]
+    cleaned_lines = [header]
+
+    for i, line in enumerate(lines[1:], start=2):  # start=2 to reflect real line number
+        try:
+            pd.read_csv(io.StringIO(f"{header}\n{line}"), delimiter=';', quotechar='"', engine='python')
+            cleaned_lines.append(line)  # linia OK
+        except Exception as e:
+            print(f"⚠️  Błąd w linii {i}: {e}")
+            print(f"🧨 Treść linii: {line}")
+            fixed_line = remove_json_fields(line)
+            print(f"✅ Poprawiona linia: {fixed_line}")
+            cleaned_lines.append(fixed_line)
+
+    return "\n".join(cleaned_lines)
 
 # Import data from CSV
 def ImportFromCSV( csvstring ):
-    report = []
-    reader = csv.DictReader(io.StringIO( csvstring ), delimiter=';')
-    for line in reader:
-        if line == '\r\n' or line == '\n' or line == '':
-            continue
-        report.append(line)
-    return report
+    df = pd.read_csv(io.StringIO(csvstring), delimiter=';', quotechar='"', engine='python')
+    return df.to_dict(orient='records')
 
 
 # Calculate billing data

@@ -60,6 +60,23 @@ def upload_file():
         print("not post")
     return redirect('/')
 
+@app.route('/pws/update', methods=['POST', 'GET'])
+def update_pws():
+    print ('content-type:')
+    print (request.headers.get('Content-Type'))
+    print ('form:')
+    print (request.form)
+    print ('values:')
+    print (request.values)
+    print ('data:')
+    print (request.data)
+    print ('json:')
+    data = request.json
+    print( data )
+
+    return render_template('index.html')
+    
+
 
 if __name__ == '__main__':
     app.secret_key = 'super secret key'
