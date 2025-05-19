@@ -21,14 +21,15 @@ if os.environ.get("WEBSITE_INSTANCE_ID") is None:
     from dotenv import load_dotenv
     load_dotenv()
 
+
 # Create a connection string for Application Insights
-connection_string = (
+applicationInsightConnectionString = (
     os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
     or os.environ.get("CONNECTIONSTRINGS:APPLICATIONINSIGHTS_CONNECTION_STRING")
 )
 
 # Create trace provider and exporter
-if connection_string:
+if applicationInsightConnectionString:
     resource = Resource(attributes={
         "service.name": "flask-telemetry-app"
     })
@@ -36,7 +37,7 @@ if connection_string:
     provider = TracerProvider(resource=resource)
     trace.set_tracer_provider(provider)
 
-    exporter = AzureMonitorTraceExporter(connection_string=connection_string)
+    exporter = AzureMonitorTraceExporter(connection_string=applicationInsightConnectionString)
     span_processor = BatchSpanProcessor(exporter)
     provider.add_span_processor(span_processor)
 
@@ -51,6 +52,7 @@ app.config['UPLOAD_FOLDER'] = os.path.abspath('uploads')
 app.config['SECRET_KEY'] = 'yt83t0ghasyg0j'
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
 app.config['version'] = '2.06 (2025-06-16)'
+app.config['APP_INSIGHTS_CONNECTION_STRING'] = applicationInsightConnectionString
 
 # Startup logging
 tracer = trace.get_tracer(__name__)

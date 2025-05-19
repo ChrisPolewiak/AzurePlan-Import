@@ -1,2 +1,71 @@
-    </body>
+        {% if config.APP_INSIGHTS_CONNECTION_STRING %}
+    <script type="text/javascript">
+        // Track page view with performance data
+        if (window.appInsights) {
+            // Add page load performance tracking
+            window.addEventListener('load', function() {
+                setTimeout(function() {
+                    // Get performance timing metrics
+                    var perfData = window.performance.timing;
+                    var pageLoadTime = perfData.loadEventEnd - perfData.navigationStart;
+                    var domProcessingTime = perfData.domComplete - perfData.domLoading;
+                    
+                    appInsights.trackPageView({
+                        name: document.title,
+                        properties: {
+                            pageLoadTime: pageLoadTime,
+                            domProcessingTime: domProcessingTime
+                        }
+                    });
+                }, 0);
+            });
+
+            // Track navigation events
+            document.addEventListener('click', function(event) {
+                var target = event.target;
+                // Find closest anchor tag if the clicked element is not an anchor
+                while (target && target.tagName !== 'A') {
+                    target = target.parentElement;
+                }
+                
+                if (target && target.tagName === 'A') {
+                    appInsights.trackEvent({
+                        name: 'Navigation',
+                        properties: {
+                            destination: target.href,
+                            linkText: target.innerText || target.textContent,
+                            isExternal: target.hostname !== window.location.hostname
+                        }
+                    });
+                }
+            });
+
+            // Track user session information
+            appInsights.trackEvent({
+                name: 'SessionInfo',
+                properties: {
+                    screenWidth: window.screen.width,
+                    screenHeight: window.screen.height,
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight,
+                    userAgent: navigator.userAgent
+                }
+            });
+
+            // Track errors
+            window.addEventListener('error', function(event) {
+                appInsights.trackException({
+                    exception: event.error || new Error(event.message),
+                    properties: {
+                        errorMessage: event.message,
+                        fileName: event.filename,
+                        lineNumber: event.lineno,
+                        columnNumber: event.colno
+                    }
+                });
+            });
+        }
+    </script>
+    {% endif %}
+</body>
 </html>
