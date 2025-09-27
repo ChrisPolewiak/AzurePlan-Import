@@ -51,7 +51,7 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['UPLOAD_FOLDER'] = os.path.abspath('uploads')
 app.config['SECRET_KEY'] = 'yt83t0ghasyg0j'
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
-app.config['version'] = '2.07 (2025-05-19)'
+app.config['version'] = '2.08 (2025-09-27)'
 app.config['APP_INSIGHTS_CONNECTION_STRING'] = applicationInsightConnectionString
 
 # Startup logging
