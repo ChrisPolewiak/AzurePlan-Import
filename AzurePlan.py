@@ -201,6 +201,10 @@ def Calculate(report):
     span.set_attribute("billing.total_partner_cost", round(total_partner_cost, 4))
     logging.info("Calculate function completed")
 
+    # Clean up function attributes
+    if hasattr(Calculate, "_logged_zero_exchange_rate"):
+        delattr(Calculate, "_logged_zero_exchange_rate")
+
     return billing
 
 def ReportTXT(billing):
