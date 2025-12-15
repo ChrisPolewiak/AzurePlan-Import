@@ -161,10 +161,7 @@ def Calculate(report):
                 error_msg = f"PCToBCExchangeRate field is zero. Defaulting to 1.0. PCToBCExchangeRate is used to convert local currency to billing currency."
                 if not hasattr(Calculate, "_logged_zero_exchange_rate"):
                     logging.error(error_msg)
-                    trace.get_current_span().add_event(
-                        "PCToBCExchangeRate is zero. Defaulting to 1.0",
-                        {"type": "error"}
-                    )
+                    span.record_exception(ValueError(error_msg))
                     billing['meta']['errors'].append({
                         'type': 'Exchange Rate Error',
                         'message': error_msg,
