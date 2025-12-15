@@ -24,14 +24,13 @@ def Import(filename, filedata):
             if filename.endswith('.csv'):
                 with tracer.start_as_current_span("read file"):
                     filedata_str = filedata.read().decode('utf-8')
-                    span.set_attribute("import.file.size", len(filedata_str))
+                    span.set_attribute("import.filesize", len(filedata_str))
 
                 with tracer.start_as_current_span("clean_bad_csv_lines"):
                     data = clean_bad_csv_lines(filedata_str)
 
                 with tracer.start_as_current_span("ImportFromCSV"):
                     report = ImportFromCSV(data)
-                    span.set_attribute("import.rows", len(report))
 
                 logging.info("Import function completed")
                 return report
@@ -97,7 +96,9 @@ def Calculate(report):
         billing = {
             'meta': {
                 'StartDate': '',
-                'EndDate': ''
+                'EndDate': '',
+                'errors': [],
+                'warnings': []
             },
             'data': {
                 'customers': {},
@@ -109,7 +110,7 @@ def Calculate(report):
     subscriptions_count = 0
     total_customer_cost = 0.0
     total_partner_cost = 0.0
-    
+
     for line in report:
         try:
             # Set Report Dates
@@ -155,6 +156,22 @@ def Calculate(report):
             PCToBCExchangeRate = float(str(line['PCToBCExchangeRate']).replace(',', '.'))
             EffectiveUnitPrice = float(str(line['EffectiveUnitPrice']).replace(',', '.'))
 
+            # Handle zero exchange rate
+            if (PCToBCExchangeRate == 0):
+                error_msg = f"PCToBCExchangeRate field is zero. Defaulting to 1.0. PCToBCExchangeRate is used to convert local currency to billing currency."
+                if not hasattr(Calculate, "_logged_zero_exchange_rate"):
+                    logging.error(error_msg)
+                    trace.get_current_span().add_event(
+                        "PCToBCExchangeRate is zero. Defaulting to 1.0",
+                        {"type": "error"}
+                    )
+                    billing['meta']['errors'].append({
+                        'type': 'Exchange Rate Error',
+                        'message': error_msg,
+                        'severity': 'error'
+                    })
+                    Calculate._logged_zero_exchange_rate = True
+                PCToBCExchangeRate = 1.0
             CustomerCost = UnitPrice * Quantity * PCToBCExchangeRate
             PartnerCost = EffectiveUnitPrice * Quantity * PCToBCExchangeRate
 
@@ -168,8 +185,14 @@ def Calculate(report):
             total_partner_cost += PartnerCost
 
         except Exception as e:
-            logging.warning("Skipping row due to error: %s", e)
+            error_msg = f"Skipping row due to error: {str(e)}"
+            logging.warning(error_msg)
             span.record_exception(e)
+            billing['meta']['warnings'].append({
+                'type': 'Row Processing Error',
+                'message': error_msg,
+                'severity': 'warning'
+            })
 
     # Final metrics for tracing
     span.set_attribute("billing.customers", customers_count)
