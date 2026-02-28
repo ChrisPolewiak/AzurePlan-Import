@@ -49,9 +49,8 @@ FlaskInstrumentor().instrument_app(app)
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['UPLOAD_FOLDER'] = os.path.abspath('uploads')
-app.config['SECRET_KEY'] = 'yt83t0ghasyg0j'
 app.config['MAX_CONTENT_LENGTH'] = 128 * 1024 * 1024
-app.config['version'] = '2.09 (2025-12-15)'
+app.config['version'] = '2.10 (2026-02-28)'
 app.config['APP_INSIGHTS_CONNECTION_STRING'] = applicationInsightConnectionString
 
 # Startup logging
